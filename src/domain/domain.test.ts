@@ -12,7 +12,7 @@ import { validateCylinder } from '@/storage/database';
 
 function cylinder(id: number, company: string, startDate: string, finishDate: string, patch: Partial<Cylinder> = {}): Cylinder {
   return { id, company, status: 'empty', bookingDate: startDate, deliveryDate: startDate, startDate, finishDate,
-    estimatedCylinderCost: null, estimatedDeliveryFee: null, actualCylinderCost: 900, actualDeliveryFee: 25,
+    cylinderCost: 900, deliveryFee: 25,
     subsidy: 50, specialUsage: 'normal', notes: '', serialNumber: '', isDemo: false,
     createdAt: startDate, updatedAt: finishDate, schemaVersion: 1, ...patch };
 }
@@ -68,13 +68,13 @@ describe('cylinder calculations', () => {
     const [returned] = parseCylindersCsv(serializeCylindersCsv([original]));
     expect(returned.company).toBe(original.company);
     expect(returned.notes).toBe(original.notes);
-    expect(Number(returned.actualCylinderCost)).toBe(original.actualCylinderCost);
+    expect(Number(returned.cylinderCost)).toBe(original.cylinderCost);
     expect(returned.finishDate).toBe(original.finishDate);
   });
   it('rejects negative charges, subsidy, and invalid lifecycle dates', () => {
     const base = cylinder(1, 'Indane', '2026-01-01', '2026-02-10');
-    expect(validateCylinder({ ...base, actualCylinderCost: -1 })).toContain('Costs and subsidy must be zero or more.');
-    expect(validateCylinder({ ...base, subsidy: -1 })).toContain('Costs and subsidy must be zero or more.');
+    expect(validateCylinder({ ...base, cylinderCost: -1 })).toContain('Cylinder charge and delivery fee are required and cannot be negative. Subsidy must be zero or more.');
+    expect(validateCylinder({ ...base, subsidy: -1 })).toContain('Cylinder charge and delivery fee are required and cannot be negative. Subsidy must be zero or more.');
     expect(validateCylinder({ ...base, finishDate: '2025-12-31' })).toContain('Empty date cannot be before start date.');
   });
 });

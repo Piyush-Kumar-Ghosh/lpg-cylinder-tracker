@@ -1,90 +1,65 @@
-# Flame — LPG Cylinder Tracker
+# Flame — Household LPG Log
 
-Flame helps a household keep track of LPG refills from booking through delivery, installation, and empty. It records the figures the household knows, calculates totals and completed usage durations, and makes transparent estimates from the household’s own completed cylinders.
+A private, local-first household ledger for LPG cylinder cycles. Flame records what you know about each refill, calculates duration and spending, and estimates future usage from completed cycles. It does not place orders with LPG providers.
 
 ## Features
 
-- Book refills and move them through Booked, Delivered, In Use, Stored / Spare, Empty, and Returned.
-- Record expected and actual charges separately; actual amounts take precedence.
-- Keep physical cylinder serial numbers separate from internal record IDs.
-- Edit and delete records, including notes and special-use context.
-- Dashboard for current use, history-based estimates, usage duration, and separate spending totals.
-- Monthly reports with booking, delivery, start, or finish date as the explicit reporting basis.
-- Yearly and company reports, plus a seasonal view based on completed cylinders.
-- Search and filter the cylinder log by company, year, month, lifecycle status, and special usage; sort by date, duration, cost, or company.
-- CSV import/export and JSON backup/restore with validation and duplicate protection.
-- Household, currency, company, prediction, and in-app reminder settings.
-- Responsive layout, keyboard focus indicators, and installable/offline app shell.
-
-The app starts empty. It does not insert sample household records or send data to a service.
+- Add and edit one complete cylinder record with company, known dates, actual cylinder charge, delivery charge, optional subsidy, special usage, notes, and physical serial number.
+- Keep booking and delivery dates optional. Start date and both charges are required; finish date is optional for a current cylinder.
+- Reject impossible date sequences, including delivery before booking, installation before delivery, and finish before start.
+- See current cylinders, historical duration, a transparent prediction, and suggested booking timing.
+- Review monthly, seasonal, company, and yearly analysis. Seasonal analysis compares completed-cycle duration by start month across years; special-use records stay included.
+- Import/export CSV and backup/restore JSON. Existing browser records are migrated to the simpler charge fields.
+- Attach a photo or PDF receipt to suggest company, dates, charges, and subsidy. Receipt text extraction/OCR runs in the browser; suggested values must be checked.
+- Responsive interface, offline app shell, and local IndexedDB persistence.
 
 ## Technology and architecture
 
-- React 19 and TypeScript, bundled by Vite.
-- Dexie on IndexedDB for cylinder records and settings.
-- Recharts for charts, Vitest for automated domain tests, and Tailwind CSS 4 for CSS processing.
-- `src/types` holds the lifecycle and settings model. `src/domain` contains timezone-safe date, money, prediction, and reporting calculations. `src/storage` owns browser persistence and validation. `src/App.tsx` connects the UI to those services.
+- React 19, TypeScript, Vite, Recharts
+- Dexie over IndexedDB for persistent local data
+- Vitest, Testing Library, fake-indexeddb
+- PDF.js and Tesseract.js for receipt text extraction and OCR
 
-## Data and calculations
+Domain calculations live in src/domain; storage and version upgrades in src/storage; CSV and receipt processing in src/services; the React interface is in src/App.tsx.
 
-Each cylinder is a single lifecycle record. IndexedDB assigns the sequential internal numeric ID. Calendar dates are stored as `YYYY-MM-DD`; calculations use UTC calendar-day arithmetic to avoid timezone shifts.
+## Calculation rules
 
-Gross total is cylinder charge plus delivery fee. Net total is gross less subsidy. For each amount, an actual figure overrides its booking estimate. Spending excludes cylinders that have not yet been delivered. Cost per day is not calculated.
+- Gross = cylinder charge + delivery charge.
+- Net = gross − optional subsidy.
+- Duration is calendar days from start to finish. Current cylinders are excluded from completed averages by default.
+- Predictions use the configured mean, median (default), or weighted duration of completed cycles. Predicted empty date = start date + estimated duration; suggested booking date = predicted empty date − delivery buffer.
+- Confidence depends on the amount and consistency of real history. Estimates are labeled and never guaranteed.
+- Monthly reporting groups values by the selected booking, delivery, start, or finish date basis. Records without that date remain unassigned.
+- No cost-per-day metric is shown.
 
-Completed duration is finish date minus start date. Historical duration uses completed records only by default. The prediction setting selects median, mean, or a chronological weighted average. Estimated empty date is start date plus the chosen duration; suggested booking date is the estimate less the configured delivery buffer. Fewer than three completed cycles are labelled low confidence; the app does not estimate annual usage until there are at least three cycles. A current cylinder is not included in completed averages unless the user opts in.
+## Storage and privacy
 
-Monthly and yearly reports group cylinders by the selected booking, delivery, start, or finish date. Finance totals follow the same explicit record basis and still include only delivered refills. Seasonality groups completed cylinders by start month; the view stays empty until there is enough data to show a pattern. Company rows show sample sizes and the app avoids ranking small samples as better providers.
+Cylinder records and settings stay in the current browser profile's IndexedDB. This static client-side app has no sign-up, login, server database, or household-data upload. Opening the app on another browser/device does not sync records. Clearing browser storage can remove them; export a backup to preserve data.
 
-## Storage, privacy, and offline use
+IndexedDB is **not encrypted by this app**. Device/browser account protections still matter, and exported files should be kept private. Receipt files are processed locally and are not retained by Flame. First-time receipt OCR may download the English recognition model from its distribution host; the receipt itself is not uploaded.
 
-Cylinder data and preferences stay in the browser’s IndexedDB. There is no application server, analytics, account, or external calculation API. Browser site data removal also removes the local records, so download backups periodically. CSV and JSON files contain household data; keep them somewhere private.
-
-The service worker caches the application shell for practical offline use. In-app reminders are evaluated while the app is open; reliable background notifications are not implemented. Data does not synchronize between devices.
-
-## Import, export, and restore
-
-CSV export contains the cylinder fields and can be imported back. Import validates rows and dates, rejects negative amounts, and cancels when records are malformed or IDs conflict; it does not silently overwrite existing records. JSON backup includes cylinders and settings. Restore validates records and asks whether to replace existing cylinder records or merge with new IDs. Replacing also restores settings when present.
+The repository and GitHub Pages site are public because the owner chose free public-repository hosting. Source code is public; household records are not part of the repository and remain in the user's browser.
 
 ## Development
 
-The project uses Node.js 20.19 or newer. It is designed to run in a GitHub Codespace; no local project copy is needed when opened there.
+Node.js 20.19+ and pnpm are required. In a GitHub Codespace, run:
 
-```sh
-pnpm install
-pnpm dev
-```
+    pnpm install
+    pnpm dev
 
-Vite listens on port 5173. In Codespaces, open the forwarded port in the browser. Commands:
+Commands:
 
-```sh
-pnpm test       # automated domain and UI workflow tests
-pnpm lint       # lint the source
-pnpm build      # type-check and create production assets
-pnpm preview    # serve a local production build
-pnpm verify     # lint, tests, and production build
-```
-
-The automated suite covers calculation and report aggregation, CSV field round-trips, IndexedDB close/reopen persistence, and UI workflows for booking through empty, current-cylinder estimates, editing, deletion, multiple in-use cylinders, and spare records.
-
-The included `.devcontainer/devcontainer.json` installs Node.js 20 and forwards port 5173. There are no required secrets or environment variables.
+    pnpm test       # automated domain, storage, and workflow tests
+    pnpm lint       # lint the source
+    pnpm build      # typecheck and production build
+    pnpm preview    # serve the production build locally
 
 ## Deployment
 
-Build with `pnpm build`, then deploy the `dist/` directory to any static host that supports a single-page application fallback to `index.html` and HTTPS. The included GitHub Actions workflow builds with `VITE_BASE_PATH=/lpg-cylinder-tracker/` and deploys `dist/` to GitHub Pages on pushes to `main`. Enable **Settings → Pages → Build and deployment → Source: GitHub Actions** once in the repository. The public site URL is `https://piyush-kumar-ghosh.github.io/lpg-cylinder-tracker/`; the source repository remains private. GitHub Pages availability for private repositories depends on the GitHub account plan. IndexedDB is scoped to the deployed origin; changing domains or clearing browser data will not move records.
+The GitHub Actions workflow builds and publishes the main branch to GitHub Pages. No backend or secret is required. The site is at https://piyush-kumar-ghosh.github.io/lpg-cylinder-tracker/.
 
-## Known limitations
+## Limitations
 
-- Background push or operating-system notifications are not supported; reminders appear only in-app.
-- No cross-device synchronization or server-side recovery exists.
-- The app does not include demo/sample data.
-
-## Repository and Codespaces
-
-The repository is intended to be private because household use information may be sensitive. To create and push a private GitHub repository after authenticating the GitHub CLI:
-
-```sh
-gh auth login
-gh repo create lpg-cylinder-tracker --private --source=. --remote=origin --push
-```
-
-Never commit household exports, browser data, credentials, or secret environment files. `.gitignore` excludes these files and generated dependencies/build output.
+- Receipt reading is best-effort and can misread blurry, handwritten, non-English, or unusual receipts. Verify suggested values.
+- This app does not encrypt live browser storage, sync between devices, or provide account recovery. Do not enter household data on a device you do not trust.
+- Reminder notices appear only while the app is open; there are no reliable background notifications.

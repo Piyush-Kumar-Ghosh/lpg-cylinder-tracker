@@ -5,126 +5,67 @@ import App from '@/App';
 import { addDays, formatLongDate, todayISO } from '@/domain/dates';
 import { db, getSettings, makeCylinder } from '@/storage/database';
 
-describe('household cylinder workflow', () => {
+describe('household cylinder ledger', () => {
   beforeEach(async () => { await db.delete(); await db.open(); });
   afterEach(() => { cleanup(); db.close(); });
 
-  it('books, delivers, starts, finishes, and reflects actual charges and duration', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Book your first cylinder' }));
-    const booking = screen.getByRole('dialog');
-    await user.clear(within(booking).getByLabelText('Booking date'));
-    await user.type(within(booking).getByLabelText('Booking date'), addDays(todayISO(), -80));
-    await user.type(within(booking).getByLabelText('Expected cylinder charge'), '900');
-    await user.type(within(booking).getByLabelText('Expected delivery fee'), '30');
-    await user.clear(within(booking).getByLabelText('Subsidy'));
-    await user.type(within(booking).getByLabelText('Subsidy'), '50');
-    await user.click(within(booking).getByRole('button', { name: 'Save booking' }));
-
-    await user.click(await screen.findByRole('button', { name: 'Mark delivered · #1' }));
-    const delivery = screen.getByRole('dialog');
-    await user.clear(within(delivery).getByLabelText('Delivery date'));
-    await user.type(within(delivery).getByLabelText('Delivery date'), addDays(todayISO(), -79));
-    await user.clear(within(delivery).getByLabelText('Actual cylinder charge'));
-    await user.type(within(delivery).getByLabelText('Actual cylinder charge'), '885');
-    await user.clear(within(delivery).getByLabelText('Actual delivery fee'));
-    await user.type(within(delivery).getByLabelText('Actual delivery fee'), '25');
-    await user.click(within(delivery).getByRole('button', { name: 'Confirm delivery' }));
-
-    await user.click(await screen.findByRole('button', { name: 'Start using · #1' }));
-    const installation = screen.getByRole('dialog');
-    await user.clear(within(installation).getByLabelText('Start / installation date'));
-    await user.type(within(installation).getByLabelText('Start / installation date'), addDays(todayISO(), -78));
-    await user.click(within(installation).getByRole('button', { name: 'Confirm start date' }));
-
-    await user.click(await screen.findByRole('button', { name: 'Mark empty · #1' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm empty date' }));
-    expect(await screen.findByText('78 days')).toBeInTheDocument();
-    expect(screen.getByText('₹910')).toBeInTheDocument();
-    expect(screen.getAllByText('₹860')).toHaveLength(2);
-    expect((await db.cylinders.get(1))?.status).toBe('empty');
-  });
-
-  it('uses completed history for a current-cylinder estimate and updates dependents after edit/delete', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Book your first cylinder' }));
-    const booking = screen.getByRole('dialog');
-    await user.clear(within(booking).getByLabelText('Booking date'));
-    await user.type(within(booking).getByLabelText('Booking date'), addDays(todayISO(), -80));
-    await user.click(within(booking).getByRole('button', { name: 'Save booking' }));
-    await user.click(await screen.findByRole('button', { name: 'Mark delivered · #1' }));
-    const delivery = screen.getByRole('dialog');
-    await user.clear(within(delivery).getByLabelText('Delivery date'));
-    await user.type(within(delivery).getByLabelText('Delivery date'), addDays(todayISO(), -79));
-    await user.click(within(delivery).getByRole('button', { name: 'Confirm delivery' }));
-    await user.click(await screen.findByRole('button', { name: 'Start using · #1' }));
-    const installation = screen.getByRole('dialog');
-    await user.clear(within(installation).getByLabelText('Start / installation date'));
-    await user.type(within(installation).getByLabelText('Start / installation date'), addDays(todayISO(), -78));
-    await user.click(within(installation).getByRole('button', { name: 'Confirm start date' }));
-    await user.click(await screen.findByRole('button', { name: 'Mark empty · #1' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm empty date' }));
-
-    await user.click(screen.getAllByRole('button', { name: '＋ Book cylinder' })[0]);
-    const nextBooking = screen.getByRole('dialog');
-    await user.selectOptions(within(nextBooking).getByLabelText('Company'), 'HP Gas / Hindustan Petroleum');
-    await user.clear(within(nextBooking).getByLabelText('Booking date'));
-    await user.type(within(nextBooking).getByLabelText('Booking date'), addDays(todayISO(), -7));
-    await user.click(within(nextBooking).getByRole('button', { name: 'Save booking' }));
-    await user.click(await screen.findByRole('button', { name: 'Mark delivered · #2' }));
-    const nextDelivery = screen.getByRole('dialog');
-    await user.clear(within(nextDelivery).getByLabelText('Delivery date'));
-    await user.type(within(nextDelivery).getByLabelText('Delivery date'), addDays(todayISO(), -6));
-    await user.click(within(nextDelivery).getByRole('button', { name: 'Confirm delivery' }));
-    await user.click(await screen.findByRole('button', { name: 'Start using · #2' }));
-    const nextInstallation = screen.getByRole('dialog');
-    await user.clear(within(nextInstallation).getByLabelText('Start / installation date'));
-    await user.type(within(nextInstallation).getByLabelText('Start / installation date'), addDays(todayISO(), -5));
-    await user.click(within(nextInstallation).getByRole('button', { name: 'Confirm start date' }));
-    await waitFor(async () => expect((await db.cylinders.get(2))?.status).toBe('in_use'));
-
-    expect(await screen.findByText('HP Gas / Hindustan Petroleum')).toBeInTheDocument();
-    expect(screen.getByText('Low confidence')).toBeInTheDocument();
-    expect(screen.getByText(formatLongDate(addDays(todayISO(), -5 + 78)))).toBeInTheDocument();
-
+  it('adds a complete record, calculates totals, and finishes it with a valid duration', async () => {
+    const user = userEvent.setup(); render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Add your first cylinder record' }));
+    const form = within(screen.getByRole('dialog'));
+    await user.type(form.getByLabelText('Cylinder charge (₹) · required'), '900');
+    await user.type(form.getByLabelText('Delivery charge (₹) · required'), '30');
+    await user.type(form.getByLabelText('Subsidy (optional)'), '50');
+    const start = addDays(todayISO(), -40);
+    await user.clear(form.getByLabelText('Start / installation date · required'));
+    await user.type(form.getByLabelText('Start / installation date · required'), start);
+    await user.click(form.getByRole('button', { name: 'Save cylinder record' }));
+    await waitFor(async () => expect((await db.cylinders.get(1))?.status).toBe('in_use'));
+    expect((await db.cylinders.get(1))?.cylinderCost).toBe(900);
+    expect(await screen.findByText('₹930')).toBeInTheDocument();
+    expect(screen.getAllByText('₹880')).toHaveLength(2);
     await user.click(screen.getByRole('button', { name: 'Cylinder log' }));
-    await user.selectOptions(screen.getByLabelText('Sort records'), 'finishDate');
-    const edits = screen.getAllByRole('button', { name: 'Edit details' });
-    await user.click(edits[0]);
-    const edit = screen.getByRole('dialog');
-    await user.selectOptions(within(edit).getByLabelText('Company'), 'Bharatgas / Bharat Petroleum');
-    await user.clear(within(edit).getByLabelText('Actual cylinder charge'));
-    await user.type(within(edit).getByLabelText('Actual cylinder charge'), '950');
-    await user.clear(within(edit).getByLabelText('Actual delivery fee'));
-    await user.type(within(edit).getByLabelText('Actual delivery fee'), '25');
-    await user.clear(within(edit).getByLabelText('Subsidy'));
-    await user.type(within(edit).getByLabelText('Subsidy'), '100');
-    await user.clear(within(edit).getByLabelText('Empty / finish date'));
-    await user.type(within(edit).getByLabelText('Empty / finish date'), addDays(todayISO(), 1));
-    await user.click(within(edit).getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByText('₹975')).toBeInTheDocument();
-
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete' });
-    await user.click(deleteButtons[0]);
-    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete cylinder' }));
-    await waitFor(async () => expect((await db.cylinders.toArray()).map(c => c.id)).toEqual([2]));
-    expect((await db.cylinders.get(2))?.company).toBe('HP Gas / Hindustan Petroleum');
+    await user.click((await screen.findAllByRole('button', { name: 'Edit details' }))[0]);
+    const edit=within(screen.getByRole('dialog'));
+    await user.clear(edit.getByLabelText('Empty / finish date'));
+    await user.type(edit.getByLabelText('Empty / finish date'), todayISO());
+    await user.click(edit.getByRole('button', { name: 'Save changes' }));
+    await waitFor(async () => expect((await db.cylinders.get(1))?.status).toBe('empty'));
+    expect(await screen.findByText('40 days')).toBeInTheDocument();
   });
 
-  it('lets the household select a primary from multiple in-use cylinders and preserves a spare', async () => {
+  it('blocks start dates earlier than delivery and suggests estimates from completed history', async () => {
+    const started=addDays(todayISO(),-10);
+    for(let i=0;i<3;i++){const start=addDays(started,-(i+1)*50); await db.cylinders.add(makeCylinder({company:'Indane / Indian Oil',status:'empty',startDate:start,deliveryDate:start,finishDate:addDays(start,42),cylinderCost:900,deliveryFee:25}));}
+    const user=userEvent.setup(); render(<App />);
+    await user.click(await screen.findByRole('button',{name:'＋ Add cylinder record'}));
+    const form=within(screen.getByRole('dialog'));
+    await user.type(form.getByLabelText('Cylinder charge (₹) · required'),'900');
+    await user.type(form.getByLabelText('Delivery charge (₹) · required'),'25');
+    await user.clear(form.getByLabelText('Delivery date (optional)'));
+    await user.type(form.getByLabelText('Delivery date (optional)'),addDays(todayISO(),1));
+    await user.clear(form.getByLabelText('Start / installation date · required'));
+    await user.type(form.getByLabelText('Start / installation date · required'),todayISO());
+    await user.click(form.getByRole('button',{name:'Save cylinder record'}));
+    expect(await screen.findByText('Start date cannot be before delivery date.')).toBeInTheDocument();
+    expect((await db.cylinders.toArray()).length).toBe(3);
+    await user.clear(form.getByLabelText('Delivery date (optional)'));
+    await user.type(form.getByLabelText('Delivery date (optional)'),addDays(todayISO(),-1));
+    await user.click(form.getByRole('button',{name:'Save cylinder record'}));
+    await waitFor(async()=>expect((await db.cylinders.toArray()).length).toBe(4));
+    expect(await screen.findByText('Medium confidence')).toBeInTheDocument();
+    expect(screen.getByText(formatLongDate(addDays(todayISO(),42)))).toBeInTheDocument();
+  });
+
+  it('supports multiple in-use cylinders and a stored spare', async () => {
     const started = addDays(todayISO(), -4);
     await db.cylinders.add(makeCylinder({ company: 'Indane / Indian Oil', status: 'in_use', bookingDate: addDays(started,-2), deliveryDate: addDays(started,-1), startDate: started }));
     await db.cylinders.add(makeCylinder({ company: 'HP Gas / Hindustan Petroleum', status: 'in_use', bookingDate: started, deliveryDate: started, startDate: addDays(started,1) }));
     await db.cylinders.add(makeCylinder({ company: 'Bharatgas / Bharat Petroleum', status: 'stored', bookingDate: started, deliveryDate: started }));
-    const user = userEvent.setup();
-    render(<App />);
+    const user = userEvent.setup(); render(<App />);
     const primary = await screen.findByLabelText('Primary current cylinder');
-    await user.selectOptions(primary, '1');
-    expect(await screen.findByRole('heading', { name: 'Indane / Indian Oil' })).toBeInTheDocument();
-    await user.selectOptions(primary, '2');
-    expect(await screen.findByRole('heading', { name: 'HP Gas / Hindustan Petroleum' })).toBeInTheDocument();
+    await user.selectOptions(primary, '1'); expect(await screen.findByRole('heading', { name: 'Indane / Indian Oil' })).toBeInTheDocument();
+    await user.selectOptions(primary, '2'); expect(await screen.findByRole('heading', { name: 'HP Gas / Hindustan Petroleum' })).toBeInTheDocument();
     expect((await getSettings()).primaryCylinderId).toBe(2);
     expect((await db.cylinders.toArray()).filter(c=>c.status==='stored')).toHaveLength(1);
   });

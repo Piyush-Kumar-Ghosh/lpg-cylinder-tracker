@@ -5,3 +5,6 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 .confirm-card{background:#fff;border-radius:18px;padding:25px;width:min(420px,100%);box-shadow:0 25px 80px #0003}.confirm-card h2{font:700 21px Manrope,sans-serif;margin:0}.confirm-card footer{display:flex;justify-content:end;gap:8px;margin-top:23px}.delete-button{border:1px solid #a6453f;background:#a6453f;color:#fff;border-radius:9px;padding:10px 15px;min-height:43px;font-weight:700}.delete-button:hover{background:#873a35}
 .year-comparison{background:#edf5f0;border-radius:10px;padding:13px 15px;color:#275b48;font-size:13px;font-weight:700;margin:8px 0 14px}.primary-cylinder{display:grid;gap:5px;text-align:left}.primary-cylinder span{font-size:10px;color:#c5d6ce}.primary-cylinder select{max-width:220px;background:#fff;color:#24352d;border:0;border-radius:7px;padding:7px 9px;font-size:12px}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }

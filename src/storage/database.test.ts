@@ -16,6 +16,6 @@ describe('local persistence', () => {
   it('normalizes malformed settings and rejects imported invalid dates and amounts', () => {
     expect(normalizeSettings({ deliveryBufferDays: -5, customCompanies: [' HP Gas ', 3] }).deliveryBufferDays).toBe(0);
     expect(normalizeSettings({ deliveryBufferDays: 4, customCompanies: [' HP Gas ', 3] }).customCompanies).toEqual(['HP Gas']);
-    expect(validateCylinder({ company: 'Indane', bookingDate: '2026-02-31', status: 'booked', subsidy: -1 })).toEqual(expect.arrayContaining(['Booking date is not a valid date.', 'Costs and subsidy must be zero or more.']));
+    expect(validateCylinder({ company: 'Indane', bookingDate: '2026-02-31', status: 'booked', subsidy: -1 })).toEqual(expect.arrayContaining(['Enter the start / installation date.', 'Booking date is not a valid date.', 'Cylinder charge and delivery fee are required and cannot be negative. Subsidy must be zero or more.']));
   });
 });

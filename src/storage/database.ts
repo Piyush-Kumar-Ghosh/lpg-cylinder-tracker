@@ -47,6 +47,14 @@ class LPGDatabase extends Dexie {
   constructor() {
     super('household-lpg-tracker');
     this.version(1).stores({ cylinders: '++id, company, status, bookingDate, deliveryDate, startDate, finishDate, isDemo', settings: 'id' });
+    this.version(2).stores({ cylinders: '++id, company, status, bookingDate, deliveryDate, startDate, finishDate, isDemo', settings: 'id' }).upgrade(async tx => {
+      await tx.table('cylinders').toCollection().modify((c: Record<string, unknown>) => {
+        c.cylinderCost = Number(c.actualCylinderCost ?? c.estimatedCylinderCost ?? 0);
+        c.deliveryFee = Number(c.actualDeliveryFee ?? c.estimatedDeliveryFee ?? 0);
+        if (c.startDate) c.status = c.finishDate ? 'empty' : 'in_use';
+        delete c.actualCylinderCost; delete c.estimatedCylinderCost; delete c.actualDeliveryFee; delete c.estimatedDeliveryFee;
+      });
+    });
     this.on('populate', () => { void this.settings.put(DEFAULT_SETTINGS); });
   }
 }
@@ -60,27 +68,27 @@ export function makeCylinder(input: Partial<NewCylinder> & Pick<NewCylinder, 'co
   return {
     company: input.company, status: input.status ?? 'booked', bookingDate: input.bookingDate ?? null,
     deliveryDate: input.deliveryDate ?? null, startDate: input.startDate ?? null, finishDate: input.finishDate ?? null,
-    estimatedCylinderCost: input.estimatedCylinderCost ?? null, estimatedDeliveryFee: input.estimatedDeliveryFee ?? null,
-    actualCylinderCost: input.actualCylinderCost ?? null, actualDeliveryFee: input.actualDeliveryFee ?? null,
+    cylinderCost: input.cylinderCost ?? input.actualCylinderCost ?? input.estimatedCylinderCost ?? 0,
+    deliveryFee: input.deliveryFee ?? input.actualDeliveryFee ?? input.estimatedDeliveryFee ?? 0,
     subsidy: input.subsidy ?? 0, specialUsage: input.specialUsage ?? 'normal', notes: input.notes ?? '',
     serialNumber: input.serialNumber ?? '', isDemo: input.isDemo ?? false, createdAt: now,
     updatedAt: now, schemaVersion: 1,
   };
 }
 
-export function validateCylinder(c: Partial<Cylinder>, allowEarlyStart = false): string[] {
+export function validateCylinder(c: Partial<Cylinder>): string[] {
   const errors: string[] = [];
   const date = (v: unknown) => isValidISODate(v);
   if (!c.company?.trim()) errors.push('Choose a company.');
-  if (!c.bookingDate) errors.push('Enter a booking date.');
+  if (!c.startDate) errors.push('Enter the start / installation date.');
   if (c.status && !CYLINDER_STATUSES.includes(c.status)) errors.push('Choose a valid cylinder status.');
   if (c.specialUsage && !SPECIAL_USAGES.includes(c.specialUsage)) errors.push('Choose a valid special usage.');
   for (const [label, value] of [['Booking date', c.bookingDate], ['Delivery date', c.deliveryDate], ['Start date', c.startDate], ['Empty date', c.finishDate]] as const) {
     if (value && !date(value)) errors.push(`${label} is not a valid date.`);
   }
   if (c.deliveryDate && c.bookingDate && c.deliveryDate < c.bookingDate) errors.push('Delivery date cannot be before booking date.');
-  if (!allowEarlyStart && c.startDate && c.deliveryDate && c.startDate < c.deliveryDate) errors.push('Start date cannot be before delivery date.');
+  if (c.startDate && c.deliveryDate && c.startDate < c.deliveryDate) errors.push('Start date cannot be before delivery date.');
   if (c.finishDate && c.startDate && c.finishDate < c.startDate) errors.push('Empty date cannot be before start date.');
-  for (const n of [c.estimatedCylinderCost, c.estimatedDeliveryFee, c.actualCylinderCost, c.actualDeliveryFee, c.subsidy]) if (n != null && (!Number.isFinite(n) || n < 0)) errors.push('Costs and subsidy must be zero or more.');
+  for (const n of [c.cylinderCost, c.deliveryFee, c.subsidy]) if (n == null || !Number.isFinite(n) || n < 0) errors.push('Cylinder charge and delivery fee are required and cannot be negative. Subsidy must be zero or more.');
   return [...new Set(errors)];
 }

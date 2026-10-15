@@ -2,7 +2,7 @@ import type { Cylinder } from '@/types';
 
 export const CSV_FIELDS: (keyof Cylinder)[] = [
   'id','company','status','bookingDate','deliveryDate','startDate','finishDate',
-  'estimatedCylinderCost','estimatedDeliveryFee','actualCylinderCost','actualDeliveryFee',
+  'cylinderCost','deliveryFee',
   'subsidy','specialUsage','notes','serialNumber','isDemo',
 ];
 
@@ -27,6 +27,6 @@ export function parseCylindersCsv(source: string): Record<string,string>[] {
     values.push(value); return values;
   };
   const headers = parseLine(lines[0]);
-  if (!headers.includes('id') || !headers.includes('company') || !headers.includes('bookingDate')) throw new Error('The CSV file is missing required cylinder columns.');
+  if (!headers.includes('id') || !headers.includes('company') || (!headers.includes('bookingDate') && !headers.includes('startDate'))) throw new Error('The CSV file is missing required cylinder columns.');
   return lines.slice(1).map(line => Object.fromEntries(parseLine(line).map((value,i)=>[headers[i],value])));
 }

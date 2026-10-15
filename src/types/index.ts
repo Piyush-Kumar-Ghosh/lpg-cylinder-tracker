@@ -84,11 +84,8 @@ export const BUILT_IN_COMPANIES = [
 /**
  * One physical refill cycle: booked → delivered → started → empty.
  *
- * Money is held as two pairs. The *estimate* pair is what the household
- * expected when booking; the *actual* pair is what they really paid on
- * delivery. Every financial calculation prefers the actual value and only
- * falls back to the estimate when no actual figure exists yet
- * (see `effectiveCylinderCost` in `src/domain/calculations/financial.ts`).
+ * Money stores the actual cylinder charge and delivery fee. Legacy estimate
+ * fields remain optional solely to migrate records created by earlier app versions.
  */
 export interface Cylinder {
   /** Stable sequential internal id assigned by the database. Not the printed serial. */
@@ -105,13 +102,13 @@ export interface Cylinder {
   finishDate: ISODate | null;
 
   /** Expected refill charge captured at booking time. */
-  estimatedCylinderCost: number | null;
-  /** Expected delivery charge captured at booking time. */
-  estimatedDeliveryFee: number | null;
-  /** Refill charge actually paid, captured at delivery. */
-  actualCylinderCost: number | null;
-  /** Delivery charge actually paid, captured at delivery. */
-  actualDeliveryFee: number | null;
+  cylinderCost: number | null;
+  deliveryFee: number | null;
+  /** Read-only legacy fields for safe upgrade of existing browser records. */
+  estimatedCylinderCost?: number | null;
+  estimatedDeliveryFee?: number | null;
+  actualCylinderCost?: number | null;
+  actualDeliveryFee?: number | null;
   /** Subsidy credited for this cylinder. Never negative. Defaults to 0. */
   subsidy: number;
 
