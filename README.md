@@ -70,7 +70,7 @@ The included `.devcontainer/devcontainer.json` installs Node.js 20 and forwards 
 
 ## Deployment
 
-Build with `pnpm build`, then deploy the `dist/` directory to any static host that supports a single-page application fallback to `index.html` and HTTPS. For GitHub Pages, build with `VITE_BASE_PATH=/lpg-cylinder-tracker/` and configure Pages to publish `dist/`. IndexedDB is scoped to the deployed origin; changing domains or clearing browser data will not move records.
+Build with `pnpm build`, then deploy the `dist/` directory to any static host that supports a single-page application fallback to `index.html` and HTTPS. The included GitHub Actions workflow builds with `VITE_BASE_PATH=/lpg-cylinder-tracker/` and deploys `dist/` to GitHub Pages on pushes to `main`. Enable **Settings → Pages → Build and deployment → Source: GitHub Actions** once in the repository. The public site URL is `https://piyush-kumar-ghosh.github.io/lpg-cylinder-tracker/`; the source repository remains private. GitHub Pages availability for private repositories depends on the GitHub account plan. IndexedDB is scoped to the deployed origin; changing domains or clearing browser data will not move records.
 
 ## Known limitations
 
